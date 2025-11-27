@@ -1,0 +1,14 @@
+.env
+.env.*
+
+env/
+venv/
+.conda/
+
+chroma_db/
+__pycache__/
+
+.DS_Store
+Thumbs.db
+
+*.pdf
