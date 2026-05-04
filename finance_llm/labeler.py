@@ -10,10 +10,10 @@ from dotenv import load_dotenv
 # .env에서 API 키 로드
 load_dotenv()
 
-INPUT_DIR = "/feynman1227/finance_report/output"
-OUTPUT_FILE = "/feynman1227/finance_report/labeled_dataset.jsonl"
+INPUT_DIR = "./finance_report/output"
+OUTPUT_FILE = "./finance_report/labeled_dataset.jsonl"
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-haiku-4-5"
 
 # 유효한 카테고리 목록
 CATEGORIES = {
@@ -186,7 +186,6 @@ def main():
 
                     if result is None:
                         total_skipped += 1
-                        time.sleep(0.5)
                         continue
 
                     record = {
@@ -200,9 +199,6 @@ def main():
                     out_f.write(json.dumps(record, ensure_ascii=False) + "\n")
                     file_labeled += 1
                     total_labeled += 1
-
-                    # API 레이트 리밋 방지
-                    time.sleep(0.5)
 
             print(f"  → 레이블링 완료: {file_labeled}건")
 

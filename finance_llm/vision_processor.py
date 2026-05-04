@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 import google.generativeai as genai
 from pdf2image import convert_from_path
 from dotenv import load_dotenv
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-GEMINI_MODEL = "gemini-3-flash"
+GEMINI_MODEL = "gemini-1.5-flash"
 
 # 차트/표/텍스트 추출 프롬프트
 EXTRACTION_PROMPT = """이 이미지는 증권사 리서치 리포트의 한 페이지입니다.
@@ -53,7 +54,11 @@ def process_vision_page(pdf_path: str, page_num: int) -> str:
         response = model.generate_content([EXTRACTION_PROMPT, image])
         raw_text = response.text.strip()
 
-        return _parse_and_format(raw_text)
+        result = _parse_and_format(raw_text)
+
+        # 무료 티어 RPM 한도(15회/분) 준수
+        time.sleep(4)
+        return result
 
     except Exception as e:
         return f"[Vision 처리 오류: {str(e)}]"
