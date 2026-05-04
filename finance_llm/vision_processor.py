@@ -2,17 +2,17 @@ import os
 import json
 import re
 import time
+import asyncio
 import google.generativeai as genai
 from pdf2image import convert_from_path
 from dotenv import load_dotenv
 
-# .env에서 API 키 로드
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = "gemini-1.5-flash"
+RPM_LIMIT = 15
 
-# 차트/표/텍스트 추출 프롬프트
 EXTRACTION_PROMPT = """이 이미지는 증권사 리서치 리포트의 한 페이지입니다.
 페이지에 있는 차트, 표, 텍스트를 분석하여 반드시 아래 JSON 형식으로만 반환하세요.
 
@@ -26,51 +26,78 @@ JSON 외 다른 텍스트는 절대 포함하지 마세요."""
 
 
 def process_vision_page(pdf_path: str, page_num: int) -> str:
-    """특정 PDF 페이지를 이미지로 변환 후 Gemini로 내용 추출
-
-    Args:
-        pdf_path: PDF 파일 경로
-        page_num: 처리할 페이지 번호 (1-based)
-
-    Returns:
-        추출된 내용의 한국어 텍스트 (JSON 파싱 실패 시 raw 텍스트)
-    """
+    """단일 페이지 동기 처리 (하위 호환용)"""
     try:
-        # 해당 페이지만 이미지로 변환 (dpi=150)
-        images = convert_from_path(
-            pdf_path,
-            dpi=150,
-            first_page=page_num,
-            last_page=page_num
-        )
-
+        images = convert_from_path(pdf_path, dpi=150, first_page=page_num, last_page=page_num)
         if not images:
             return ""
-
-        image = images[0]
-
-        # Gemini API 호출
         model = genai.GenerativeModel(GEMINI_MODEL)
-        response = model.generate_content([EXTRACTION_PROMPT, image])
-        raw_text = response.text.strip()
-
-        result = _parse_and_format(raw_text)
-
-        # 무료 티어 RPM 한도(15회/분) 준수
-        time.sleep(4)
-        return result
-
+        response = model.generate_content([EXTRACTION_PROMPT, images[0]])
+        time.sleep(4)  # 무료 15 RPM 준수
+        return _parse_and_format(response.text.strip())
     except Exception as e:
         return f"[Vision 처리 오류: {str(e)}]"
 
 
-def _parse_and_format(raw_text: str) -> str:
-    """Gemini 응답 JSON을 파싱하여 한국어 텍스트로 변환
-
-    JSON 파싱 실패 시 raw 텍스트 그대로 반환
-    """
+async def _process_single_async(model, pdf_path: str, page_num: int) -> str:
+    loop = asyncio.get_event_loop()
     try:
-        # 마크다운 코드블록(```json ... ```) 제거
+        images = await loop.run_in_executor(
+            None,
+            lambda: convert_from_path(pdf_path, dpi=150, first_page=page_num, last_page=page_num)
+        )
+        if not images:
+            return ""
+        response = await model.generate_content_async([EXTRACTION_PROMPT, images[0]])
+        return _parse_and_format(response.text.strip())
+    except Exception as e:
+        return f"[Vision 처리 오류: {str(e)}]"
+
+
+async def _batch_async(pages: list) -> dict:
+    """15개씩 동시 처리, 60초 윈도우 단위 배치"""
+    model = genai.GenerativeModel(GEMINI_MODEL)
+    results = {}
+
+    for i in range(0, len(pages), RPM_LIMIT):
+        batch = pages[i:i + RPM_LIMIT]
+        batch_start = time.time()
+
+        print(f"  [Vision 배치 {i // RPM_LIMIT + 1}] {i + 1}-{min(i + RPM_LIMIT, len(pages))} / {len(pages)} 동시 처리 중...")
+
+        tasks = [_process_single_async(model, pdf_path, page_num) for pdf_path, page_num in batch]
+        texts = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for (pdf_path, page_num), text in zip(batch, texts):
+            if isinstance(text, Exception):
+                results[(pdf_path, page_num)] = f"[Vision 처리 오류: {str(text)}]"
+            else:
+                results[(pdf_path, page_num)] = text
+
+        if i + RPM_LIMIT < len(pages):
+            elapsed = time.time() - batch_start
+            wait = max(0, 60 - elapsed)
+            if wait > 0:
+                print(f"  → 다음 배치까지 {wait:.1f}초 대기 중...")
+                await asyncio.sleep(wait)
+
+    return results
+
+
+def process_vision_pages_batch(pages: list) -> dict:
+    """여러 페이지를 async 배치로 처리 (15 RPM 무료 한도 내 최대 속도)
+
+    Args:
+        pages: (pdf_path, page_num) 튜플 리스트
+
+    Returns:
+        {(pdf_path, page_num): text} 딕셔너리
+    """
+    return asyncio.run(_batch_async(pages))
+
+
+def _parse_and_format(raw_text: str) -> str:
+    try:
         cleaned = re.sub(r'```(?:json)?\s*|\s*```', '', raw_text).strip()
         data = json.loads(cleaned)
 
@@ -96,5 +123,4 @@ def _parse_and_format(raw_text: str) -> str:
         return '\n'.join(parts)
 
     except (json.JSONDecodeError, KeyError, AttributeError):
-        # JSON 파싱 실패 시 raw 텍스트 반환
         return raw_text

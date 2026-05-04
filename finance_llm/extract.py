@@ -1,11 +1,10 @@
 import os
 import json
-import time
 from pathlib import Path
 
 from pdf_processor import process_pdf
+from vision_processor import process_vision_pages_batch
 
-# 입력/출력 경로 설정
 PDF_DIR = "./finance_report"
 OUTPUT_DIR = "./finance_report/output"
 
@@ -13,65 +12,74 @@ OUTPUT_DIR = "./finance_report/output"
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 처리할 PDF 파일 목록 수집
     pdf_files = sorted(Path(PDF_DIR).glob("*.pdf"))
     total = len(pdf_files)
     print(f"총 {total}개 PDF 발견\n")
 
-    summary = []
+    # --- 1단계: 전체 PDF 구조 파악 (Vision 호출 없이) ---
+    print("=== 1단계: 차트 페이지 탐지 ===")
+    all_results = {}
+    vision_pages = []  # (pdf_path, page_num) 전체 목록
 
     for idx, pdf_path in enumerate(pdf_files, 1):
-        print(f"[{idx:02d}/{total}] 처리 중: {pdf_path.name}")
+        print(f"[{idx:02d}/{total}] 탐지 중: {pdf_path.name}")
+        result = process_pdf(str(pdf_path), use_vision=False)
+        all_results[str(pdf_path)] = result
 
-        try:
-            result = process_pdf(str(pdf_path), use_vision=True)
+        for page in result["pages"]:
+            if page["routing"] == "vision":
+                vision_pages.append((str(pdf_path), page["page"]))
 
-            pdfplumber_pages = [p for p in result["pages"] if p["routing"] == "pdfplumber"]
-            vision_pages = [p for p in result["pages"] if p["routing"] == "vision"]
+    print(f"\n총 Vision 페이지: {len(vision_pages)}개\n")
 
-            print(f"  → pdfplumber 페이지 수: {len(pdfplumber_pages)}")
-            print(f"  → vision 페이지 수: {len(vision_pages)}")
+    # --- 2단계: Vision 페이지 async 배치 처리 ---
+    print("=== 2단계: Vision 배치 처리 (15개 동시) ===")
+    vision_results = {}
+    if vision_pages:
+        vision_results = process_vision_pages_batch(vision_pages)
 
-            # 파일별 JSON 결과 저장
-            out_path = Path(OUTPUT_DIR) / f"{pdf_path.stem}.json"
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
+    # --- 3단계: 결과 병합 후 JSON 저장 ---
+    print("\n=== 3단계: 결과 저장 ===")
+    summary = []
 
-            summary.append({
-                "filename": pdf_path.name,
-                "total_pages": len(result["pages"]),
-                "pdfplumber_pages": len(pdfplumber_pages),
-                "vision_pages": len(vision_pages),
-                "error": result.get("error", None)
-            })
+    for pdf_path in pdf_files:
+        result = all_results[str(pdf_path)]
 
-        except Exception as e:
-            print(f"  → 오류 발생: {e}")
-            summary.append({
-                "filename": pdf_path.name,
-                "total_pages": 0,
-                "pdfplumber_pages": 0,
-                "vision_pages": 0,
-                "error": str(e)
-            })
+        # vision 결과 채우기
+        for page in result["pages"]:
+            if page["routing"] == "vision":
+                key = (str(pdf_path), page["page"])
+                page["text"] = vision_results.get(key, "")
 
-        # API 레이트 리밋 방지
-        time.sleep(0.5)
+        pdfplumber_count = sum(1 for p in result["pages"] if p["routing"] == "pdfplumber")
+        vision_count = sum(1 for p in result["pages"] if p["routing"] == "vision")
 
-    # 전체 summary.json 저장
+        print(f"  저장: {pdf_path.name}  (pdfplumber: {pdfplumber_count}, vision: {vision_count})")
+
+        out_path = Path(OUTPUT_DIR) / f"{pdf_path.stem}.json"
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+
+        summary.append({
+            "filename": pdf_path.name,
+            "total_pages": len(result["pages"]),
+            "pdfplumber_pages": pdfplumber_count,
+            "vision_pages": vision_count,
+            "error": result.get("error", None)
+        })
+
     summary_path = Path(OUTPUT_DIR) / "summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
-    # 완료 통계 출력
     total_pdfplumber = sum(s["pdfplumber_pages"] for s in summary)
     total_vision = sum(s["vision_pages"] for s in summary)
     errors = [s for s in summary if s["error"]]
 
     print(f"\n{'=' * 50}")
     print(f"배치 완료")
-    print(f"총 pdfplumber 페이지 수: {total_pdfplumber}")
-    print(f"총 Vision 페이지 수: {total_vision}")
+    print(f"총 pdfplumber 페이지: {total_pdfplumber}")
+    print(f"총 Vision 페이지: {total_vision}")
     if errors:
         print(f"에러 발생 파일 ({len(errors)}개):")
         for e in errors:
