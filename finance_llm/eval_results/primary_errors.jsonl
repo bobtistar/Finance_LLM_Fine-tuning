@@ -1,0 +1,2 @@
+{"index": 5, "text": "다만, Yageo의 1월 매출이 전월보다 5% 증가한 것처럼 최악의 상황은 지난 듯싶", "gold_primary": "산업_트렌드", "pred_primary": "실적_전망", "gold_secondary": ["기업_분석"], "pred_secondary": ["산업_트렌드"], "raw_output": "```json\n{\"primary\":\"실적_전망\",\"secondary\":[\"산업_트렌드\"]}\n```"}
+{"index": 10, "text": "조원), SDC 1.2조원, MX/NW 3.3조원, VD/가전 0.3조원, 하만 0.5조원으로 추정", "gold_primary": "기업_분석", "pred_primary": "실적_전망", "gold_secondary": [], "pred_secondary": [], "raw_output": "```json\n{\"primary\":\"실적_전망\",\"secondary\":[]}\n```"}

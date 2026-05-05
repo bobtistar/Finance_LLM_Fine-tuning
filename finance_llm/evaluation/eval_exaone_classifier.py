@@ -28,6 +28,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 from smoke_test_exaone import (
     CATEGORIES,
+    LOAD_MODE,
     PROJECT_DIR,
     classify_sentence,
     load_tokenizer_and_model,
@@ -60,6 +61,11 @@ def parse_args():
         "--no-4bit",
         action="store_true",
         help="4-bit 로딩을 끕니다. GTX 1660 Super에서는 보통 사용하지 않는 옵션입니다.",
+    )
+    parser.add_argument(
+        "--cpu",
+        action="store_true",
+        help="GPU를 쓰지 않고 CPU로 실행합니다.",
     )
     return parser.parse_args()
 
@@ -216,14 +222,19 @@ def main():
     if not VALID_FILE.exists():
         raise FileNotFoundError(f"valid.jsonl을 찾을 수 없습니다: {VALID_FILE}")
 
-    use_4bit = torch.cuda.is_available() and not args.no_4bit
+    if args.cpu:
+        load_mode = "cpu"
+    elif args.no_4bit:
+        load_mode = "hybrid"
+    else:
+        load_mode = LOAD_MODE
 
     print("[준비] 평가 데이터 로드")
     rows = load_valid_rows(args.limit)
     print(f"[준비] 평가 샘플 수: {len(rows)}")
 
     print("[준비] 모델 로드")
-    tokenizer, model = load_tokenizer_and_model(use_4bit=use_4bit)
+    tokenizer, model = load_tokenizer_and_model(load_mode=load_mode)
     print_gpu_info()
 
     predictions = []
