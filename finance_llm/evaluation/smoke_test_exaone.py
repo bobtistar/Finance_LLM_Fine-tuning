@@ -79,10 +79,10 @@ TEST_TEXTS = [
 # "hybrid": bitsandbytes 없이 일부는 GPU, 일부는 CPU/디스크에 올립니다. Windows에서 가장 안전한 기본값입니다.
 # "4bit": bitsandbytes 4-bit GPU 로딩입니다. 빠르지만 현재 Windows 환경에서 access violation이 발생했습니다.
 # "cpu": GPU를 쓰지 않고 CPU로만 로딩합니다. 가장 느리지만 원인 분리에는 좋습니다.
-LOAD_MODE = "cpu"
+LOAD_MODE = "4bit"
 
 # CPU 강제 실행용 이전 옵션입니다. True이면 LOAD_MODE보다 우선해서 CPU로 실행합니다.
-FORCE_CPU = True
+FORCE_CPU = False
 
 CATEGORIES = [
     "산업_트렌드",
