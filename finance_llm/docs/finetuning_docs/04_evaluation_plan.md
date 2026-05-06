@@ -1,76 +1,72 @@
-# 04. 평가 계획
+# 04. Evaluation Plan
 
-## 1. 평가 목적
+## 1. Objective
 
-이번 평가는 “학습이 끝났는지”를 확인하는 것이 아니라, 이 모델을 LangGraph에 classifier node로 붙여도 되는지를 판단하는 단계입니다.
+The goal of this evaluation is not to measure a fully general-purpose model. The goal is to decide whether the EXAONE classifier is stable and accurate enough to be attached to a LangGraph classifier node.
 
-EXAONE의 역할:
+The expected behavior is:
 
 ```text
-문장/문단 입력
-→ primary category 분류
-→ secondary category 최대 2개 출력
-→ JSON 형태로 반환
+sentence / paragraph input
+-> primary category classification
+-> up to 2 secondary categories
+-> strict JSON output
 ```
 
-따라서 평가는 생성 품질이 아니라 **분류 품질과 출력 안정성**을 봅니다.
+So the focus is on both:
 
-## 2. 평가 데이터
+```text
+1. classification quality
+2. output stability
+```
+
+## 2. Evaluation Data
 
 ```text
 valid.jsonl
 ```
 
-현재 validation set:
+Validation set size:
 
 ```text
 304 samples
 ```
 
-## 3. 핵심 평가 지표
+## 3. Metrics
 
 ```text
 1. JSON valid rate
 2. Primary accuracy
 3. Primary macro F1
 4. Primary weighted F1
-5. Category별 precision / recall / F1
+5. Per-category precision / recall / F1
 6. Secondary micro F1
 7. Secondary macro F1
 8. Confusion matrix
-9. Invalid output sample
-10. Primary error sample
+9. Invalid output sample review
+10. Primary error sample review
 ```
 
-## 4. 판단 기준
+## 4. Deployment Criteria
 
-### 바로 LangGraph에 붙여도 되는 수준
+Direct deployment as classifier node:
 
 ```text
 JSON valid rate >= 0.98
-primary accuracy >= 0.85
+primary accuracy around 0.85 or higher
 macro F1 >= 0.75
-산업_분석 / 리스크_요인 recall이 너무 낮지 않음
+critical categories such as risk_factor and valuation should not collapse
 ```
 
-### 붙이되 Claude fallback 필요
+Deployable with caution or fallback:
 
 ```text
 JSON valid rate >= 0.95
-primary accuracy 0.80~0.85
-macro F1 0.65~0.75
+primary accuracy around 0.80 ~ 0.85
+macro F1 around 0.65 ~ 0.75
 ```
 
-Fallback 대상:
-
-```text
-- JSON 파싱 실패
-- primary가 7개 카테고리 밖에 있음
-- 문장이 너무 길거나 애매함
-- 산업_분석 / 리스크_요인처럼 recall이 낮은 클래스 후보
-```
-
-### 재학습 권장
+Retraining recommended:
 
 ```text
 JSON valid rate < 0.95
@@ -78,28 +74,28 @@ primary accuracy < 0.80
 macro F1 < 0.65
 ```
 
-## 5. 특히 봐야 할 카테고리
+## 5. Categories That Need Extra Attention
 
-주의 클래스:
-
-```text
-산업_분석
-리스크_요인
-밸류에이션
-```
-
-자주 헷갈릴 가능성이 높은 쌍:
+Important categories:
 
 ```text
-산업_트렌드 ↔ 산업_분석
-성장_동력 ↔ 기업_분석
-실적_전망 ↔ 밸류에이션
-리스크_요인 ↔ 산업_트렌드
+industry_analysis
+risk_factor
+valuation
 ```
 
-## 6. 평가 결과 저장 파일
+Likely confusion zones:
 
-평가 스크립트는 다음 파일을 생성하도록 구성합니다.
+```text
+industry_trend <-> industry_analysis
+growth_driver <-> company_analysis
+earnings_outlook <-> valuation
+earnings_outlook <-> company_analysis
+```
+
+## 6. Evaluation Output Files
+
+The evaluation script should generate:
 
 ```text
 eval_results/
@@ -110,11 +106,9 @@ eval_results/
   primary_errors.jsonl
 ```
 
-## 7. 결과 해석
+## 7. How to Read the Result
 
-### summary.json
-
-먼저 아래 항목을 봅니다.
+Check these first in summary.json:
 
 ```text
 json_valid_rate
@@ -124,52 +118,65 @@ primary_weighted_f1
 secondary_micro_f1
 secondary_macro_f1
 invalid_count
-primary_error_count
 ```
 
-해석:
+Interpretation:
 
 ```text
-JSON valid rate 높음
-→ LangGraph에서 파싱 가능성이 높음
+high JSON valid rate
+-> low parser risk in LangGraph
 
-primary accuracy 높음
-→ 카테고리 라우터로 사용 가능
+high primary accuracy
+-> primary category is usable for routing
 
-macro F1 낮음
-→ 일부 소수 클래스 성능이 낮을 가능성
+high macro F1
+-> minority classes are not collapsing
 
-secondary F1 낮음
-→ secondary는 참고용으로만 사용
+low secondary F1
+-> secondary should be treated as supporting metadata only
 ```
 
-### primary_errors.jsonl
-
-에러를 수동으로 30개 정도 확인해서 다음 세 유형으로 나눕니다.
+For primary_errors.jsonl:
 
 ```text
-A. 모델이 명백히 틀림
-B. gold label이 애매하거나 틀림
-C. 둘 다 가능하지만 기준이 불명확함
+Review at least 20~30 samples manually
+Classify each error into:
+A. model truly wrong
+B. gold label ambiguous
+C. category definition unclear
 ```
 
-B/C가 많으면 하이퍼파라미터보다 라벨 기준 정리가 먼저입니다.
+If B or C appears often, prompt and label definition work may be more valuable than raw retraining.
 
-## 8. 평가 후 결정
+## 8. Actual Outcome
+
+### Baseline result
 
 ```text
-1. 기준 통과
-   → LangGraph classifier node로 연결
+json_valid_rate = 1.0
+primary_accuracy = 0.789
+primary_macro_f1 = 0.785
+secondary_micro_f1 = 0.481
+secondary_macro_f1 = 0.443
+```
 
-2. primary accuracy는 괜찮지만 macro F1이 낮음
-   → 소수 클래스 데이터 보강 또는 oversampling
+### After prompt update
 
-3. JSON valid rate가 낮음
-   → output 포맷 정제, parser 강화, prompt 수정
+```text
+json_valid_rate = 1.0
+primary_accuracy = 0.845
+primary_macro_f1 = 0.850
+primary_weighted_f1 = 0.846
+secondary_micro_f1 = 0.526
+secondary_macro_f1 = 0.507
+```
 
-4. 특정 쌍을 계속 혼동
-   → 카테고리 정의 강화, 헷갈리는 케이스 추가 라벨링
+### Final decision
 
-5. 전체 성능 낮음
-   → 2차 QLoRA 실험
+```text
+Deployable as a primary classifier node
+Use primary as routing signal
+Use secondary as supporting metadata
+Future improvement should focus on
+company_analysis / growth_driver / earnings_outlook boundaries
 ```

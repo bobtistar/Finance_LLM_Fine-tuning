@@ -1,106 +1,95 @@
-# 05. 다음 TODO 리스트
+# 05. Next TODO List
 
-## A. 평가 TODO
+## A. Evaluation Status
 
-```text
-[ ] RunPod 또는 로컬 GPU 환경에서 valid.jsonl 전체 평가 실행
-[ ] summary.json 확인
-[ ] classification_report.txt 확인
-[ ] confusion_matrix.csv 확인
-[ ] primary_errors.jsonl에서 30개 이상 수동 검토
-[ ] invalid_samples.jsonl 확인
-```
-
-필수 기록 지표:
+Completed:
 
 ```text
-JSON valid rate
-primary accuracy
-primary macro F1
-primary weighted F1
-secondary micro F1
-secondary macro F1
-카테고리별 recall
+[x] Full validation evaluation on valid.jsonl (304 samples)
+[x] summary.json review
+[x] classification_report.txt review
+[x] confusion pattern review through primary_errors.jsonl
+[x] prompt update applied and re-evaluation completed
 ```
 
-## B. 코드 정리 TODO
+Current best evaluation result:
 
 ```text
-[ ] EXAONE 추론 코드를 class로 분리
-[ ] JSON parser 함수 추가
-[ ] 코드블록 제거 post-processing 추가
-[ ] category validation 추가
-[ ] parsing 실패 시 fallback 로직 추가
+JSON valid rate      1.000
+Primary accuracy     0.845
+Primary macro F1     0.850
+Primary weighted F1  0.846
+Secondary micro F1   0.526
+Secondary macro F1   0.507
 ```
 
-추천 파일 구조:
+## B. Deployment TODO
+
+```text
+[ ] Freeze the current inference prompt version
+[ ] Keep the latest eval_results as deployment baseline evidence
+[ ] Connect EXAONE classifier to LangGraph classifier node
+[ ] Route downstream logic by primary category
+[ ] Use secondary only as supporting metadata
+[ ] Decide whether high-impact paths need fallback handling
+```
+
+## C. Code Cleanup TODO
+
+```text
+[ ] Extract EXAONE inference code into a reusable class/module
+[ ] Move shared category definitions and prompt text into one source
+[ ] Separate parser / prompt / model-loading logic more cleanly
+[ ] Normalize adapter path configuration
+```
+
+Suggested structure:
 
 ```text
 src/
   models/
     exaone_classifier.py
+  prompts/
+    category_prompt.py
   utils/
     json_parser.py
   evaluation/
     eval_exaone_classifier.py
 ```
 
-## C. LangGraph 통합 TODO
+## D. Remaining Model Improvement TODO
+
+Main remaining confusion pairs:
 
 ```text
-[ ] EXAONE classifier node 작성
-[ ] 문장/문단 단위 입력 처리
-[ ] primary 기준으로 category bucket 생성
-[ ] secondary는 보조 bucket 또는 metadata로 저장
-[ ] Claude API section writer node 작성
-[ ] Claude API report composer node 작성
-[ ] Claude API reviewer node 작성
-[ ] end-to-end 샘플 리포트 1개 생성
+growth_driver -> company_analysis
+industry_trend -> growth_driver
+company_analysis -> earnings_outlook
+company_analysis -> growth_driver
+growth_driver -> earnings_outlook
 ```
 
-## D. 성능 개선 TODO
-
-### JSON valid rate가 낮을 때
+Recommended next improvement tasks:
 
 ```text
-[ ] output parser 강화
-[ ] system prompt에 마크다운 금지 추가
-[ ] 학습 데이터 output을 순수 JSON으로 재정리
-[ ] max_new_tokens 제한
+[ ] Review 20-30 remaining primary_errors samples
+[ ] Tighten label boundaries for company_analysis / growth_driver / earnings_outlook
+[ ] Add more industry_analysis examples if that class remains weak in production
+[ ] Regenerate dataset with the updated instruction if retraining is planned
+[ ] Run second-round QLoRA only if deployment feedback shows the need
 ```
 
-### primary accuracy가 낮을 때
+## E. Retraining Ideas
+
+Current best baseline before retraining:
 
 ```text
-[ ] primary_errors.jsonl 분석
-[ ] 라벨 기준 애매한 샘플 정리
-[ ] 추가 라벨링
-[ ] 2차 QLoRA 실험
+Prompt-updated inference already reached primary accuracy 0.845
 ```
 
-### macro F1이 낮을 때
+If another training round is needed, try only one or two changes at a time:
 
-```text
-[ ] 산업_분석 데이터 보강
-[ ] 리스크_요인 데이터 보강
-[ ] 밸류에이션 데이터 보강
-[ ] 소수 클래스 oversampling 고려
-```
-
-## F. 2차 학습 실험 후보
-
-현재 baseline:
-
-```text
-lr = 2e-4
-epoch = 2
-r = 16
-alpha = 32
-dropout = 0.05
-max_length = 1024
-```
-
-### Experiment v2: 안정성 중심
+### Experiment v2: lower learning rate
 
 ```text
 lr = 1e-4
@@ -110,17 +99,17 @@ alpha = 32
 dropout = 0.05
 ```
 
-### Experiment v3: 표현력 증가
+### Experiment v3: higher adapter capacity
 
 ```text
-lr = 1e-4 또는 2e-4
+lr = 1e-4 or 2e-4
 epoch = 2
 r = 32
 alpha = 64
 dropout = 0.05
 ```
 
-### Experiment v4: 학습량 증가
+### Experiment v4: more training
 
 ```text
 lr = 1e-4
@@ -130,9 +119,10 @@ alpha = 32
 dropout = 0.05
 ```
 
-주의:
+Guideline:
 
 ```text
-하이퍼파라미터를 감으로 바꾸지 말고,
-valid 평가 결과를 보고 한 번에 1~2개만 바꾼다.
+Do not change too many hyperparameters at once.
+Compare every new run against the current deployment baseline:
+primary accuracy 0.845 / macro F1 0.850 / JSON valid rate 1.0
 ```
