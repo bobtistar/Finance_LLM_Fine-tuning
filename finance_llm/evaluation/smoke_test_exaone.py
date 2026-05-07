@@ -64,7 +64,9 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 BASE_MODEL_NAME = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
-ADAPTER_DIR = PROJECT_DIR / "models" / "exaone-3.5-2.4b-finance-qlora"
+BASE_MODEL_REVISION = "8e6fc27"
+
+ADAPTER_DIR = PROJECT_DIR / "outputs" / "exaone-3.5-2.4b-finance-qlora"
 
 # 터미널을 쓰지 않고 테스트하고 싶으면 여기만 수정하면 됩니다.
 # 여러 문장을 넣으면 모델은 한 번만 로드하고, 문장을 순서대로 테스트합니다.
@@ -129,29 +131,8 @@ def make_prompt(text):
 
     return (
         "당신은 증권사 리서치 리포트 문장을 분류하는 금융 분석 보조 모델입니다.\n"
-        "주어진 문장을 아래 7개 카테고리 중 primary 1개와 secondary 최대 2개로 분류하세요.\n\n"
+        "주어진 문장을 primary 1개와 secondary 최대 2개로 분류하세요.\n\n"
         f"카테고리: {category_text}\n\n"
-        "카테고리 정의:\n"
-        "- 산업_트렌드: 산업 전반의 방향성, 외부 수요/공급 변화, 시장 성장률, 업황 변화\n"
-        "- 성장_동력: 기업의 미래 성장 근거, 신사업, 기술 우위, 신규 고객 확보, 증설/투자/신제품이 성장 논리로 제시된 경우\n"
-        "- 실적_전망: 매출/영업이익/EPS/마진 등 수치 기반 실적 추정, 컨센서스, 가이던스, 상향/하향 전망\n"
-        "- 산업_분석: 경쟁사 비교, 점유율 비교, 산업 구조, 공급망, 밸류체인, 업계 내 포지셔닝 비교\n"
-        "- 기업_분석: 기업 내부 현황, 사업부 구조, 생산라인, 제품 믹스, 고객사, 투자 현황, 현재 진행 중인 전략/운영 상태\n"
-        "- 리스크_요인: 투자 thesis를 훼손할 하방 요인, 규제, 수요 둔화, 비용 부담, 경쟁 심화\n"
-        "- 밸류에이션: 목표주가 산정 근거, PER/PBR/EV/EBITDA 등 밸류에이션 배수와 평가 논리\n\n"
-        "중요한 판별 규칙:\n"
-        "1. 숫자, 매출, 영업이익, 증가율 표현이 있어도 미래 실적 추정/가이던스/컨센서스가 아니면 실적_전망으로 보내지 마세요.\n"
-        "2. 회사의 현재 사업부 구성, 생산능력, 고객사, 제품군, 투자 집행, 운영 현황 설명은 기업_분석을 우선하세요.\n"
-        "3. 증설, 신제품, 기술력, 파트너십, 신규 시장 진입이 미래 성장 근거로 쓰이면 성장_동력을 우선하세요.\n"
-        "4. 경쟁사 비교, 점유율 비교, 공급망/밸류체인/산업 구조 설명은 산업_분석을 우선하세요.\n"
-        "5. 산업 전체 수요/공급, 업황, 시장 성장 방향은 산업_트렌드를 우선하세요.\n"
-        "6. primary는 문장의 중심 논지를 가장 잘 설명하는 하나만 고르세요. secondary는 보조 맥락일 때만 넣으세요.\n\n"
-        "혼동 방지 기준:\n"
-        "- 기업 내부 현황 + 숫자: 기본은 기업_분석\n"
-        "- 산업 전망 + 숫자: 기본은 산업_트렌드\n"
-        "- 미래 실적 수치 추정/컨센서스/가이던스: 실적_전망\n"
-        "- 기술/증설/파트너십이 성장 논리의 핵심: 성장_동력\n"
-        "- 비교/점유율/공급망/밸류체인: 산업_분석\n\n"
         "반드시 JSON만 출력하세요.\n"
         '출력 형식: {"primary":"카테고리명","secondary":["카테고리명"]}\n\n'
         f"문장: {text}"
@@ -239,17 +220,19 @@ def load_tokenizer_and_model(load_mode="hybrid"):
         dtype = torch.float16
 
     base_model = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL_NAME,
-        trust_remote_code=True,
-        cache_dir=MODEL_CACHE_DIR,
-        device_map=device_map,
-        max_memory=max_memory,
-        offload_folder=OFFLOAD_DIR if load_mode == "hybrid" else None,
-        offload_state_dict=True if load_mode == "hybrid" else False,
-        dtype=dtype,
-        quantization_config=quantization_config,
-        low_cpu_mem_usage=True,
+    BASE_MODEL_NAME,
+    revision=BASE_MODEL_REVISION,
+    trust_remote_code=True,
+    cache_dir=MODEL_CACHE_DIR,
+    device_map=device_map,
+    max_memory=max_memory,
+    offload_folder=OFFLOAD_DIR if load_mode == "hybrid" else None,
+    offload_state_dict=True if load_mode == "hybrid" else False,
+    torch_dtype=dtype,
+    quantization_config=quantization_config,
+    low_cpu_mem_usage=True,
     )
+
 
     print("[3/4] EXAONE embedding patch 적용 중...")
     patch_exaone_embedding(base_model)
