@@ -1,0 +1,11 @@
+{
+  "total_count": 304,
+  "json_valid_count": 304,
+  "invalid_count": 0,
+  "json_valid_rate": 1.0,
+  "primary_accuracy": 0.8453947368421053,
+  "primary_macro_f1": 0.8496208801707145,
+  "primary_weighted_f1": 0.8456311507946283,
+  "secondary_micro_f1": 0.5260273972602739,
+  "secondary_macro_f1": 0.5071418042844661
+}
