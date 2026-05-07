@@ -1,3 +1,5 @@
+import json
+
 CATEGORIES = [
     "산업_트렌드",
     "성장_동력",
@@ -71,6 +73,38 @@ FEW_SHOT_EXAMPLES = [
         "미중 반도체 규제 강화시 수출 차질 우려",
         {"primary": "리스크_요인", "secondary": ["산업_트렌드"]},
     ),
+    (
+        "HBM 수요 증가로 ASP 상승이 이어지며 메모리 업체들의 내년 영업이익 추정치도 상향되고 있다.",
+        {"primary": "산업_트렌드", "secondary": ["실적_전망"]},
+    ),
+    (
+        "신규 AI 가속기 출시와 북미 고객사 확보가 본격화되며 중장기 매출 성장 기반이 강화되고 있다.",
+        {"primary": "성장_동력", "secondary": ["기업_분석"]},
+    ),
+    (
+        "서버 증설이 4분기부터 반영되면서 생산능력 확대가 내년 매출 증가로 이어질 전망이다.",
+        {"primary": "실적_전망", "secondary": ["성장_동력"]},
+    ),
+    (
+        "주요 고객사향 출하 비중이 확대되고 있지만 원재료 가격 상승 부담으로 수익성 개선 폭은 제한적일 수 있다.",
+        {"primary": "리스크_요인", "secondary": ["기업_분석"]},
+    ),
+    (
+        "경쟁사 대비 HBM 수율은 우위에 있으나 신규 증설 속도에서는 뒤처져 점유율 방어 부담이 존재한다.",
+        {"primary": "산업_분석", "secondary": ["리스크_요인"]},
+    ),
+    (
+        "스마트폰 사업부 재고 정상화와 플래그십 판매 회복으로 하반기 실적 반등 가능성이 높아지고 있다.",
+        {"primary": "실적_전망", "secondary": ["기업_분석"]},
+    ),
+    (
+        "북미 빅테크와의 공동 개발 경험은 향후 맞춤형 AI 서버 수주 확대의 핵심 근거가 될 것이다.",
+        {"primary": "성장_동력", "secondary": ["산업_분석"]},
+    ),
+    (
+        "12개월 Forward PER 18배를 적용하되, 내년 EPS 상향 가능성을 반영해 목표주가를 11만원으로 높였다.",
+        {"primary": "밸류에이션", "secondary": ["실적_전망"]},
+    ),
 ]
 
 
@@ -94,3 +128,12 @@ def format_classification_rules() -> str:
 
 def format_disambiguation_rules() -> str:
     return "\n".join(f"- {rule}" for rule in DISAMBIGUATION_RULES)
+
+
+def format_few_shot_examples() -> str:
+    blocks = []
+    for input_text, output_json in FEW_SHOT_EXAMPLES:
+        blocks.append(
+            f'입력: "{input_text}"\n출력: {json.dumps(output_json, ensure_ascii=False)}'
+        )
+    return "\n\n".join(blocks)

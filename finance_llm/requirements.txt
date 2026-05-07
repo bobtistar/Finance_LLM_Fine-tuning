@@ -1,0 +1,23 @@
+# Core LLM / classifier stack
+torch>=2.2,<2.7
+transformers>=4.44,<4.48
+peft>=0.12,<0.15
+accelerate>=0.34,<1.0
+safetensors>=0.4,<1.0
+sentencepiece>=0.2,<0.3
+
+# 4-bit quantization is typically used on Linux GPU environments.
+bitsandbytes>=0.43,<0.46; platform_system == "Linux"
+
+# API clients
+anthropic>=0.34,<1.0
+google-generativeai>=0.8,<1.0
+python-dotenv>=1.0,<2.0
+
+# PDF / vision preprocessing
+pdfplumber>=0.11,<0.12
+pdf2image>=1.17,<2.0
+Pillow>=10.4,<12.0
+
+# Evaluation
+scikit-learn>=1.5,<1.7

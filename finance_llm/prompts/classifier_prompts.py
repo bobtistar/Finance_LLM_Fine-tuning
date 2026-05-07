@@ -6,6 +6,7 @@ from common.category import (
     format_category_list,
     format_classification_rules,
     format_disambiguation_rules,
+    format_few_shot_examples,
 )
 
 
@@ -20,6 +21,8 @@ def build_exaone_classifier_prompt(text: str) -> str:
         f"{format_classification_rules()}\n\n"
         "혼동 방지 기준:\n"
         f"{format_disambiguation_rules()}\n\n"
+        "예시:\n"
+        f"{format_few_shot_examples()}\n\n"
         "반드시 JSON만 출력하세요.\n"
         '출력 형식: {"primary":"카테고리명","secondary":["카테고리명"]}\n\n'
         f"문장: {text}"
