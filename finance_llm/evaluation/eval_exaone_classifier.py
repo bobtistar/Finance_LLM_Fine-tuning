@@ -15,9 +15,13 @@ IDE에서 실행하는 방법:
 import argparse
 import csv
 import json
+import sys
 from pathlib import Path
 
-import torch
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -26,32 +30,22 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from smoke_test_exaone import (
-    CATEGORIES,
+from common.category import CATEGORIES
+from models.exaone_classifier import (
     LOAD_MODE,
-    PROJECT_DIR,
     classify_sentence,
+    configure_runtime_environment,
     load_tokenizer_and_model,
-    parse_json_output,
     print_gpu_info,
 )
+from utils.classification_parser import parse_classification_json
 
-
-# ---------------------------------------------------------------------
-# 기본 설정
-# ---------------------------------------------------------------------
+configure_runtime_environment()
 
 VALID_FILE = PROJECT_DIR / "finance_report" / "qlora_dataset" / "valid.jsonl"
 RESULT_DIR = PROJECT_DIR / "eval_results"
-
-# 처음에는 10개만 테스트하세요.
-# 10개가 성공하면 30으로 바꾸고, 마지막 전체 평가는 None으로 바꾸면 됩니다.
 EVAL_LIMIT = None
 
-
-# ---------------------------------------------------------------------
-# 입력 옵션
-# ---------------------------------------------------------------------
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -70,35 +64,28 @@ def parse_args():
     return parser.parse_args()
 
 
-# ---------------------------------------------------------------------
-# 데이터 로드
-# ---------------------------------------------------------------------
-
 def load_valid_rows(limit):
     rows = []
 
     with VALID_FILE.open("r", encoding="utf-8") as f:
         for line in f:
             item = json.loads(line)
-
             text = item["input"].replace("문장:", "", 1).strip()
             gold = json.loads(item["output"])
 
-            rows.append({
-                "text": text,
-                "gold_primary": gold["primary"],
-                "gold_secondary": gold.get("secondary", []),
-            })
+            rows.append(
+                {
+                    "text": text,
+                    "gold_primary": gold["primary"],
+                    "gold_secondary": gold.get("secondary", []),
+                }
+            )
 
             if limit is not None and len(rows) >= limit:
                 break
 
     return rows
 
-
-# ---------------------------------------------------------------------
-# 평가 계산
-# ---------------------------------------------------------------------
 
 def calculate_secondary_f1(gold_list, pred_list):
     labeler = MultiLabelBinarizer(classes=CATEGORIES)
@@ -160,10 +147,6 @@ def make_summary(rows, predictions, invalid_count):
     }
 
 
-# ---------------------------------------------------------------------
-# 결과 저장
-# ---------------------------------------------------------------------
-
 def save_jsonl(path, rows):
     with path.open("w", encoding="utf-8") as f:
         for row in rows:
@@ -212,10 +195,6 @@ def save_results(rows, predictions, invalid_samples, primary_errors, summary):
     save_jsonl(RESULT_DIR / "primary_errors.jsonl", primary_errors)
 
 
-# ---------------------------------------------------------------------
-# 실행
-# ---------------------------------------------------------------------
-
 def main():
     args = parse_args()
 
@@ -250,33 +229,35 @@ def main():
             text=row["text"],
             max_new_tokens=args.max_new_tokens,
         )
-        parsed = parse_json_output(raw_output)
+        parsed = parse_classification_json(raw_output)
 
         if parsed is None:
-            invalid_samples.append({
-                "index": index,
-                "text": row["text"],
-                "gold_primary": row["gold_primary"],
-                "gold_secondary": row["gold_secondary"],
-                "raw_output": raw_output,
-            })
+            invalid_samples.append(
+                {
+                    "index": index,
+                    "text": row["text"],
+                    "gold_primary": row["gold_primary"],
+                    "gold_secondary": row["gold_secondary"],
+                    "raw_output": raw_output,
+                }
+            )
             continue
 
         predictions.append(parsed)
 
         if parsed["primary"] != row["gold_primary"]:
-            primary_errors.append({
-                "index": index,
-                "text": row["text"],
-                "gold_primary": row["gold_primary"],
-                "pred_primary": parsed["primary"],
-                "gold_secondary": row["gold_secondary"],
-                "pred_secondary": parsed["secondary"],
-                "raw_output": raw_output,
-            })
+            primary_errors.append(
+                {
+                    "index": index,
+                    "text": row["text"],
+                    "gold_primary": row["gold_primary"],
+                    "pred_primary": parsed["primary"],
+                    "gold_secondary": row["gold_secondary"],
+                    "pred_secondary": parsed["secondary"],
+                    "raw_output": raw_output,
+                }
+            )
 
-    # invalid 샘플을 제외하고 primary/secondary 점수를 계산합니다.
-    # JSON valid rate는 summary에 따로 기록됩니다.
     valid_rows = []
     valid_predictions = []
     invalid_indexes = {sample["index"] for sample in invalid_samples}
