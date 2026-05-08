@@ -7,6 +7,14 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+try:
+    from config.categories import LABELING_SYSTEM_PROMPT, parse_classification_json
+except ModuleNotFoundError:
+    from finance_llm.config.categories import (
+        LABELING_SYSTEM_PROMPT,
+        parse_classification_json,
+    )
+
 load_dotenv()
 
 INPUT_DIR = "./finance_report/output"
@@ -14,77 +22,6 @@ OUTPUT_FILE = "./finance_report/labeled_dataset.jsonl"
 
 MODEL = "claude-haiku-4-5"
 CONCURRENCY = 10  # 동시 API 호출 수
-
-CATEGORIES = {
-    "산업_트렌드",
-    "성장_동력",
-    "실적_전망",
-    "산업_분석",
-    "기업_분석",
-    "리스크_요인",
-    "밸류에이션",
-}
-
-SYSTEM_PROMPT = """당신은 증권사 리서치 리포트 문장을 분류하는 전문가입니다.
-주어진 문장을 아래 7개 카테고리 중 하나의 primary와 최대 2개의 secondary로 분류하세요.
-
-## 카테고리 정의
-- 산업_트렌드: 산업 전반의 방향성, 외부 수요/공급 변화, 시장 성장률, 업황 변화
-- 성장_동력: 기업의 미래 성장 근거, 신사업, 기술 우위, 신규 고객 확보, 증설/투자/신제품이 성장 논리로 제시된 경우
-- 실적_전망: 매출/영업이익/EPS/마진 등 수치 기반 실적 추정, 컨센서스, 가이던스, 상향/하향 전망
-- 산업_분석: 경쟁사 비교, 점유율 비교, 산업 구조, 공급망, 밸류체인, 업계 내 포지셔닝 비교
-- 기업_분석: 기업 내부 현황, 사업부 구조, 생산라인, 제품 믹스, 고객사, 투자 현황, 현재 진행 중인 전략/운영 상태
-- 리스크_요인: 투자 thesis를 훼손할 하방 요인, 규제, 수요 둔화, 비용 부담, 경쟁 심화
-- 밸류에이션: 목표주가 산정 근거, PER/PBR/EV/EBITDA 등 밸류에이션 배수와 평가 논리
-
-## 중요 규칙
-- 숫자, 매출, 영업이익, 증가율이 있어도 미래 실적 추정/가이던스/컨센서스가 아니면 실적_전망으로 보내지 마세요.
-- 회사의 현재 사업부 구성, 생산능력, 고객사, 제품군, 투자 집행, 운영 현황 설명은 기업_분석을 우선하세요.
-- 증설, 신제품, 기술력, 파트너십, 신규 시장 진입이 미래 성장 근거로 쓰이면 성장_동력을 우선하세요.
-- 경쟁사 비교, 점유율 비교, 공급망/밸류체인/산업 구조 설명은 산업_분석을 우선하세요.
-- 산업 전체 수요/공급, 업황, 시장 성장 방향은 산업_트렌드를 우선하세요.
-- primary는 문장의 중심 논지를 가장 잘 설명하는 하나만 고르고, secondary는 보조 맥락일 때만 넣으세요.
-
-## 혼동 방지 기준
-- 기업 내부 현황 + 숫자: 기본은 기업_분석
-- 산업 전망 + 숫자: 기본은 산업_트렌드
-- 미래 실적 수치 추정/컨센서스/가이던스: 실적_전망
-- 기술/증설/파트너십이 성장 논리의 핵심: 성장_동력
-- 비교/점유율/공급망/밸류체인: 산업_분석
-
-## 출력 규칙
-- JSON만 출력
-- secondary는 최대 2개
-- 분류 불가 문장은 {"primary": null, "secondary": []} 반환
-
-## 출력 형식
-{"primary": "카테고리명", "secondary": ["카테고리명"]}
-
-## Few-shot 예시
-
-입력: "글로벌 HBM 수요가 2025년 40% 증가할 전망"
-출력: {"primary": "산업_트렌드", "secondary": []}
-
-입력: "2024년 매출액 32조원, 영업이익 4.2조원으로 컨센서스를 상회할 전망"
-출력: {"primary": "실적_전망", "secondary": []}
-
-입력: "MX/NW 3.3조원, VD/가전 0.3조원으로 추정"
-출력: {"primary": "기업_분석", "secondary": []}
-
-입력: "부산 공장 전장 라인이 3분기부터 본격 가동되며 전장용 매출 비중이 상승하고 있다."
-출력: {"primary": "기업_분석", "secondary": ["실적_전망"]}
-
-입력: "삼성전자는 HBM3E 양산을 통해 고객사 점유율 회복을 추진 중이다"
-출력: {"primary": "성장_동력", "secondary": ["기업_분석"]}
-
-입력: "아이폰13용 OLED는 삼성 73%, LG 27%로 공급된다."
-출력: {"primary": "산업_분석", "secondary": ["기업_분석"]}
-
-입력: "12개월 Forward PER 14배 적용, 목표주가 9만원"
-출력: {"primary": "밸류에이션", "secondary": []}
-
-입력: "미중 반도체 규제 강화시 수출 차질 우려"
-출력: {"primary": "리스크_요인", "secondary": ["산업_트렌드"]}"""
 
 
 def split_sentences(text: str) -> list[str]:
@@ -109,7 +46,7 @@ async def classify_sentence(
                 system=[
                     {
                         "type": "text",
-                        "text": SYSTEM_PROMPT,
+                        "text": LABELING_SYSTEM_PROMPT,
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
@@ -117,16 +54,7 @@ async def classify_sentence(
             )
 
             raw = response.content[0].text.strip()
-            cleaned = re.sub(r'```(?:json)?\s*|\s*```', '', raw).strip()
-            data = json.loads(cleaned)
-
-            if data.get("primary") is None:
-                return None
-            if data["primary"] not in CATEGORIES:
-                return None
-
-            secondary = [c for c in data.get("secondary", []) if c in CATEGORIES][:2]
-            return {"primary": data["primary"], "secondary": secondary}
+            return parse_classification_json(raw, allow_null_primary=True)
 
         except (json.JSONDecodeError, KeyError, IndexError, AttributeError):
             return None

@@ -9,21 +9,18 @@
 import json
 import csv
 import random
+import sys
 from collections import defaultdict
 from pathlib import Path
 
+PARENT_PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PARENT_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_PROJECT_DIR))
+
+from config.categories import CATEGORIES
+
 JSONL_PATH = "finance_report/labeled_dataset.jsonl"
 OUTPUT_PATH = "finance_report/review_samples.csv"
-
-CATEGORIES = [
-    "산업_트렌드",
-    "성장_동력",
-    "실적_전망",
-    "산업_분석",
-    "기업_분석",
-    "리스크_요인",
-    "밸류에이션",
-]
 
 # 카테고리당 샘플 수 (소수 카테고리에 가중치)
 SAMPLES_PER_CAT = {

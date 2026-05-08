@@ -5,50 +5,18 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+try:
+    from config.categories import CATEGORIES, CATEGORY_SET, TRAINING_INSTRUCTION
+except ModuleNotFoundError:
+    from finance_llm.config.categories import (
+        CATEGORIES,
+        CATEGORY_SET,
+        TRAINING_INSTRUCTION,
+    )
+
 
 DEFAULT_INPUT = Path("finance_report/labeled_dataset.jsonl")
 DEFAULT_OUTPUT_DIR = Path("finance_report/qlora_dataset")
-
-CATEGORIES = [
-    "산업_트렌드",
-    "성장_동력",
-    "실적_전망",
-    "산업_분석",
-    "기업_분석",
-    "리스크_요인",
-    "밸류에이션",
-]
-CATEGORY_SET = set(CATEGORIES)
-
-INSTRUCTION = """당신은 증권사 리서치 리포트 문장을 분류하는 금융 분석 보조 모델입니다.
-주어진 문장을 아래 7개 카테고리 중 하나의 주카테고리(primary)와 최대 2개의 보조카테고리(secondary)로 분류하세요.
-
-카테고리 정의:
-- 산업_트렌드: 산업 전반의 방향성, 외부 수요/공급 변화, 시장 성장률, 업황 변화
-- 성장_동력: 기업의 미래 성장 근거, 신사업, 기술 우위, 신규 고객 확보, 증설/투자/신제품이 성장 논리로 제시된 경우
-- 실적_전망: 매출/영업이익/EPS/마진 등 수치 기반 실적 추정, 컨센서스, 가이던스, 상향/하향 전망
-- 산업_분석: 경쟁사 비교, 점유율 비교, 산업 구조, 공급망, 밸류체인, 업계 내 포지셔닝 비교
-- 기업_분석: 기업 내부 현황, 사업부 구조, 생산라인, 제품 믹스, 고객사, 투자 현황, 현재 진행 중인 전략/운영 상태
-- 리스크_요인: 투자 thesis를 훼손할 하방 요인, 규제, 수요 둔화, 비용 부담, 경쟁 심화
-- 밸류에이션: 목표주가 산정 근거, PER/PBR/EV/EBITDA 등 밸류에이션 배수와 평가 논리
-
-중요한 판별 규칙:
-1. 숫자, 매출, 영업이익, 증가율 표현이 있어도 미래 실적 추정/가이던스/컨센서스가 아니면 실적_전망으로 분류하지 않습니다.
-2. 회사의 현재 사업부 구성, 생산능력, 고객사, 제품군, 투자 집행, 운영 현황 설명은 기업_분석을 우선합니다.
-3. 증설, 신제품, 기술력, 파트너십, 신규 시장 진입이 미래 성장 근거로 쓰이면 성장_동력을 우선합니다.
-4. 경쟁사 비교, 점유율 비교, 공급망/밸류체인/산업 구조 설명은 산업_분석을 우선합니다.
-5. 산업 전체 수요/공급, 업황, 시장 성장 방향은 산업_트렌드를 우선합니다.
-6. primary는 문장의 중심 논지를 가장 잘 설명하는 하나만 고르고, secondary는 보조 맥락일 때만 넣습니다.
-
-혼동 방지 기준:
-- 기업 내부 현황 + 숫자: 기본은 기업_분석
-- 산업 전망 + 숫자: 기본은 산업_트렌드
-- 미래 실적 수치 추정/컨센서스/가이던스: 실적_전망
-- 기술/증설/파트너십이 성장 논리의 핵심: 성장_동력
-- 비교/점유율/공급망/밸류체인: 산업_분석
-
-출력은 반드시 JSON만 반환하세요.
-출력 형식: {"primary": "카테고리명", "secondary": ["카테고리명"]}"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -159,7 +127,7 @@ def to_training_row(record: dict[str, Any]) -> dict[str, str]:
         "secondary": record["secondary"],
     }
     return {
-        "instruction": INSTRUCTION,
+        "instruction": TRAINING_INSTRUCTION,
         "input": f"문장: {record['text']}",
         "output": json.dumps(output, ensure_ascii=False, separators=(",", ":")),
     }

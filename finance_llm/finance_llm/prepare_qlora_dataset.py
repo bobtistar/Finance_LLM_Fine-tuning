@@ -1,39 +1,20 @@
 import argparse
 import json
 import random
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+PARENT_PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PARENT_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_PROJECT_DIR))
+
+from config.categories import CATEGORIES, CATEGORY_SET, TRAINING_INSTRUCTION
+
 
 DEFAULT_INPUT = Path("finance_report/labeled_dataset.jsonl")
 DEFAULT_OUTPUT_DIR = Path("finance_report/qlora_dataset")
-
-CATEGORIES = [
-    "산업_트렌드",
-    "성장_동력",
-    "실적_전망",
-    "산업_분석",
-    "기업_분석",
-    "리스크_요인",
-    "밸류에이션",
-]
-CATEGORY_SET = set(CATEGORIES)
-
-INSTRUCTION = """당신은 증권사 리서치 리포트 문장을 분류하는 금융 분석 보조 모델입니다.
-주어진 문장을 아래 7개 카테고리 중 하나의 주카테고리(primary)와 최대 2개의 보조카테고리(secondary)로 분류하세요.
-
-카테고리 정의:
-- 산업_트렌드: 해당 산업 전반의 방향성, 외부 수요/공급 변화
-- 성장_동력: 기업 내부 역량, 신사업, 경쟁우위
-- 실적_전망: 매출/영업이익/EPS 등 수치 기반 미래 예측
-- 산업_분석: 경쟁사 비교, 산업 구조, 밸류체인
-- 기업_분석: 기업 내부 현황, 사업부 구조, 전략
-- 리스크_요인: 투자 thesis를 훼손할 하방 요인
-- 밸류에이션: 목표주가 산정 근거, PER/PBR 등 배수 기반 평가
-
-출력은 반드시 JSON만 반환하세요.
-출력 형식: {"primary": "카테고리명", "secondary": ["카테고리명"]}"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -144,7 +125,7 @@ def to_training_row(record: dict[str, Any]) -> dict[str, str]:
         "secondary": record["secondary"],
     }
     return {
-        "instruction": INSTRUCTION,
+        "instruction": TRAINING_INSTRUCTION,
         "input": f"문장: {record['text']}",
         "output": json.dumps(output, ensure_ascii=False, separators=(",", ":")),
     }

@@ -23,7 +23,6 @@ import faulthandler
 import gc
 import json
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -35,6 +34,16 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------------------
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
+PARENT_PROJECT_DIR = Path(__file__).resolve().parents[2]
+if str(PARENT_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_PROJECT_DIR))
+
+from config.categories import (  # noqa: E402
+    CATEGORIES,
+    make_classification_prompt as make_prompt,
+    parse_classification_json as parse_json_output,
+)
+
 MODEL_CACHE_DIR = PROJECT_DIR / ".hf_cache"
 ENV_FILE = PROJECT_DIR / ".env"
 RESULT_DIR = PROJECT_DIR / "eval_results"
@@ -86,17 +95,6 @@ LOAD_MODE = "4bit"
 # CPU 강제 실행용 이전 옵션입니다. True이면 LOAD_MODE보다 우선해서 CPU로 실행합니다.
 FORCE_CPU = False
 
-CATEGORIES = [
-    "산업_트렌드",
-    "성장_동력",
-    "실적_전망",
-    "산업_분석",
-    "기업_분석",
-    "리스크_요인",
-    "밸류에이션",
-]
-
-
 # ---------------------------------------------------------------------
 # 입력 옵션
 # ---------------------------------------------------------------------
@@ -120,23 +118,6 @@ def parse_args():
         help="GPU를 쓰지 않고 CPU로 실행합니다.",
     )
     return parser.parse_args()
-
-
-# ---------------------------------------------------------------------
-# 프롬프트 생성
-# ---------------------------------------------------------------------
-
-def make_prompt(text):
-    category_text = ", ".join(CATEGORIES)
-
-    return (
-        "당신은 증권사 리서치 리포트 문장을 분류하는 금융 분석 보조 모델입니다.\n"
-        "주어진 문장을 primary 1개와 secondary 최대 2개로 분류하세요.\n\n"
-        f"카테고리: {category_text}\n\n"
-        "반드시 JSON만 출력하세요.\n"
-        '출력 형식: {"primary":"카테고리명","secondary":["카테고리명"]}\n\n'
-        f"문장: {text}"
-    )
 
 
 # ---------------------------------------------------------------------
@@ -279,49 +260,6 @@ def classify_sentence(tokenizer, model, text, max_new_tokens):
     gc.collect()
 
     return result
-
-
-# ---------------------------------------------------------------------
-# JSON 파싱
-# ---------------------------------------------------------------------
-
-def parse_json_output(raw_text):
-    """
-    모델이 ```json 코드블록을 붙여도 JSON 부분만 찾아서 파싱합니다.
-    파싱 실패 또는 카테고리 오류가 있으면 None을 반환합니다.
-    """
-    text = raw_text.strip()
-    text = re.sub(r"^```json\s*", "", text)
-    text = re.sub(r"^```\s*", "", text)
-    text = re.sub(r"\s*```$", "", text)
-
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if match is None:
-        return None
-
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
-
-    primary = data.get("primary")
-    secondary = data.get("secondary", [])
-
-    if primary not in CATEGORIES:
-        return None
-    if not isinstance(secondary, list):
-        return None
-
-    secondary = [
-        category
-        for category in secondary
-        if category in CATEGORIES and category != primary
-    ][:2]
-
-    return {
-        "primary": primary,
-        "secondary": secondary,
-    }
 
 
 # ---------------------------------------------------------------------
