@@ -34,8 +34,9 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------------------
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-if str(PROJECT_DIR) not in sys.path:
-    sys.path.insert(0, str(PROJECT_DIR))
+PARENT_PROJECT_DIR = Path(__file__).resolve().parents[2]
+if str(PARENT_PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_PROJECT_DIR))
 
 from config.categories import (  # noqa: E402
     CATEGORIES,
@@ -72,7 +73,9 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 BASE_MODEL_NAME = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
-ADAPTER_DIR = PROJECT_DIR / "models" / "exaone-3.5-2.4b-finance-qlora"
+BASE_MODEL_REVISION = "8e6fc27"
+
+ADAPTER_DIR = PROJECT_DIR / "outputs" / "exaone-3.5-2.4b-finance-qlora"
 
 # 터미널을 쓰지 않고 테스트하고 싶으면 여기만 수정하면 됩니다.
 # 여러 문장을 넣으면 모델은 한 번만 로드하고, 문장을 순서대로 테스트합니다.
@@ -198,17 +201,19 @@ def load_tokenizer_and_model(load_mode="hybrid"):
         dtype = torch.float16
 
     base_model = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL_NAME,
-        trust_remote_code=True,
-        cache_dir=MODEL_CACHE_DIR,
-        device_map=device_map,
-        max_memory=max_memory,
-        offload_folder=OFFLOAD_DIR if load_mode == "hybrid" else None,
-        offload_state_dict=True if load_mode == "hybrid" else False,
-        dtype=dtype,
-        quantization_config=quantization_config,
-        low_cpu_mem_usage=True,
+    BASE_MODEL_NAME,
+    revision=BASE_MODEL_REVISION,
+    trust_remote_code=True,
+    cache_dir=MODEL_CACHE_DIR,
+    device_map=device_map,
+    max_memory=max_memory,
+    offload_folder=OFFLOAD_DIR if load_mode == "hybrid" else None,
+    offload_state_dict=True if load_mode == "hybrid" else False,
+    torch_dtype=dtype,
+    quantization_config=quantization_config,
+    low_cpu_mem_usage=True,
     )
+
 
     print("[3/4] EXAONE embedding patch 적용 중...")
     patch_exaone_embedding(base_model)

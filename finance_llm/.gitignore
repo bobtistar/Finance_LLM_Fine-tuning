@@ -20,6 +20,7 @@ data/processed/
 # 모델 / 체크포인트
 # ================================
 /models/exaone-3.5-2.4b-finance-qlora/
+*.tar.gz
 *.pt
 *.pth
 *.bin
