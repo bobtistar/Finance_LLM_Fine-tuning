@@ -34,13 +34,10 @@ from common.category import CATEGORIES
 from models.exaone_classifier import (
     LOAD_MODE,
     classify_sentence,
-    configure_runtime_environment,
     load_tokenizer_and_model,
     print_gpu_info,
 )
 from utils.classification_parser import parse_classification_json
-
-configure_runtime_environment()
 
 VALID_FILE = PROJECT_DIR / "finance_report" / "qlora_dataset" / "valid.jsonl"
 RESULT_DIR = PROJECT_DIR / "eval_results"

@@ -12,8 +12,9 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
-JSONL_PATH = "finance_report/labeled_dataset.jsonl"
-OUTPUT_PATH = "finance_report/review_samples.csv"
+BASE_DIR = Path(__file__).resolve().parent
+JSONL_PATH = BASE_DIR / "finance_report" / "labeled_dataset.jsonl"
+OUTPUT_PATH = BASE_DIR / "finance_report" / "review_samples.csv"
 
 CATEGORIES = [
     "산업_트렌드",
@@ -39,9 +40,9 @@ SAMPLES_PER_CAT = {
 SEED = 42
 
 
-def load_by_category(path: str) -> dict:
+def load_by_category(path: Path) -> dict:
     by_cat = defaultdict(list)
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         for i, line in enumerate(f):
             item = json.loads(line)
             item["_idx"] = i + 1  # 원본 행 번호
@@ -62,8 +63,8 @@ def sample(by_cat: dict) -> list:
     return rows
 
 
-def write_csv(rows: list, output: str):
-    with open(output, "w", encoding="utf-8-sig", newline="") as f:  # utf-8-sig: Excel 호환
+def write_csv(rows: list, output: Path):
+    with output.open("w", encoding="utf-8-sig", newline="") as f:  # utf-8-sig: Excel 호환
         writer = csv.writer(f)
         writer.writerow(["#", "주카테고리", "보조카테고리", "텍스트", "출처", "페이지", "review"])
         for i, row in enumerate(rows, 1):

@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_INPUT = Path("finance_report/labeled_dataset.jsonl")
-DEFAULT_OUTPUT_DIR = Path("finance_report/qlora_dataset")
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_INPUT = BASE_DIR / "finance_report" / "labeled_dataset.jsonl"
+DEFAULT_OUTPUT_DIR = BASE_DIR / "finance_report" / "qlora_dataset"
 
 CATEGORIES = [
     "산업_트렌드",

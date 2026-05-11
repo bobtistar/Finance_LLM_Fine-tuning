@@ -1,5 +1,7 @@
 import gc
+import importlib.util
 import os
+import platform
 from pathlib import Path
 
 import torch
@@ -18,7 +20,7 @@ FATAL_LOG_FILE = RESULT_DIR / "fatal_error.log"
 
 BASE_MODEL_NAME = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
 BASE_MODEL_REVISION = "8e6fc27"
-LOAD_MODE = "4bit"
+LOAD_MODE = "auto"
 
 ADAPTER_DIR_CANDIDATES = [
     PROJECT_DIR / "outputs" / "exaone-3.5-2.4b-finance-qlora",
@@ -43,6 +45,49 @@ def resolve_adapter_dir() -> Path:
         if candidate.exists():
             return candidate
     return ADAPTER_DIR_CANDIDATES[0]
+
+
+def bitsandbytes_available() -> bool:
+    return (
+        platform.system() == "Linux"
+        and importlib.util.find_spec("bitsandbytes") is not None
+    )
+
+
+def resolve_load_mode(load_mode: str) -> str:
+    if load_mode == "cpu":
+        return "cpu"
+
+    if load_mode == "hybrid":
+        if torch.cuda.is_available():
+            return "hybrid"
+        print("[로딩 방식] CUDA가 없어 hybrid 대신 CPU로 실행합니다.")
+        return "cpu"
+
+    if load_mode not in {"auto", "4bit"}:
+        raise ValueError(
+            "load_mode는 'auto', '4bit', 'hybrid', 'cpu' 중 하나여야 합니다."
+        )
+
+    has_cuda = torch.cuda.is_available()
+    has_bitsandbytes = bitsandbytes_available()
+
+    if has_cuda and has_bitsandbytes:
+        return "4bit"
+
+    if load_mode == "4bit":
+        if not has_cuda:
+            print("[로딩 방식] CUDA가 없어 4-bit 대신 CPU로 실행합니다.")
+            return "cpu"
+        print("[로딩 방식] bitsandbytes를 사용할 수 없어 4-bit 대신 hybrid로 실행합니다.")
+        return "hybrid"
+
+    if has_cuda:
+        print("[로딩 방식] bitsandbytes를 사용할 수 없어 auto 모드를 hybrid로 실행합니다.")
+        return "hybrid"
+
+    print("[로딩 방식] CUDA가 없어 auto 모드를 CPU로 실행합니다.")
+    return "cpu"
 
 
 def patch_exaone_embedding(model) -> None:
@@ -70,9 +115,10 @@ def make_4bit_config() -> BitsAndBytesConfig:
     )
 
 
-def load_tokenizer_and_model(load_mode: str = "hybrid", adapter_dir: Path | None = None):
+def load_tokenizer_and_model(load_mode: str = LOAD_MODE, adapter_dir: Path | None = None):
     configure_runtime_environment()
 
+    load_mode = resolve_load_mode(load_mode)
     adapter_path = adapter_dir or resolve_adapter_dir()
 
     print(f"[캐시 위치] {MODEL_CACHE_DIR}")

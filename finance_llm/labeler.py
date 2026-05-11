@@ -11,10 +11,11 @@ from common.category import CATEGORY_SET
 from prompts.classifier_prompts import build_claude_classifier_system_prompt
 from utils.classification_parser import parse_classification_json
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 
-INPUT_DIR = "./finance_report/output"
-OUTPUT_FILE = "./finance_report/labeled_dataset.jsonl"
+INPUT_DIR = BASE_DIR / "finance_report" / "output"
+OUTPUT_FILE = BASE_DIR / "finance_report" / "labeled_dataset.jsonl"
 
 MODEL = "claude-haiku-4-5"
 CONCURRENCY = 10  # 동시 API 호출 수
@@ -136,7 +137,7 @@ async def main():
     write_lock = asyncio.Lock()
 
     input_files = sorted(
-        f for f in Path(INPUT_DIR).glob("*.json")
+        f for f in INPUT_DIR.glob("*.json")
         if f.name != "summary.json"
     )
     total_files = len(input_files)

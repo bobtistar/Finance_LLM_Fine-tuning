@@ -1,16 +1,16 @@
-import os
 import json
 from pathlib import Path
 
 from pdf_processor import process_pdf
 from vision_processor import process_vision_pages_batch
 
-PDF_DIR = "./finance_report"
-OUTPUT_DIR = "./finance_report/output"
+BASE_DIR = Path(__file__).resolve().parent
+PDF_DIR = BASE_DIR / "finance_report"
+OUTPUT_DIR = PDF_DIR / "output"
 
 
 def main():
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     pdf_files = sorted(Path(PDF_DIR).glob("*.pdf"))
     total = len(pdf_files)

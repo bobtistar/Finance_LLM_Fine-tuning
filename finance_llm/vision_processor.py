@@ -3,11 +3,14 @@ import json
 import re
 import time
 import asyncio
+from pathlib import Path
+
 import google.generativeai as genai
 from pdf2image import convert_from_path
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = "gemini-1.5-flash"
